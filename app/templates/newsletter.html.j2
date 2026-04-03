@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light dark" />
+  <title>{{ issue_title }} — {{ published_at }}</title>
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --panel: #121826;
+      --muted: #8b9bb4;
+      --text: #e8eef7;
+      --accent: #5eead4;
+      --accent2: #818cf8;
+      --border: rgba(255,255,255,.08);
+      --card: rgba(255,255,255,.03);
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #f6f7fb;
+        --panel: #ffffff;
+        --muted: #5c6578;
+        --text: #111827;
+        --accent: #0d9488;
+        --accent2: #4f46e5;
+        --border: rgba(15,23,42,.08);
+        --card: rgba(15,23,42,.03);
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      background: radial-gradient(1200px 600px at 20% -10%, rgba(94,234,212,.12), transparent 55%),
+                  radial-gradient(900px 500px at 100% 0%, rgba(129,140,248,.14), transparent 50%),
+                  var(--bg);
+      color: var(--text);
+      line-height: 1.55;
+    }
+    a { color: var(--accent2); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .wrap { max-width: 880px; margin: 0 auto; padding: 28px 18px 56px; }
+    header {
+      padding: 28px 22px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: linear-gradient(180deg, var(--panel), var(--card));
+      box-shadow: 0 10px 40px rgba(0,0,0,.18);
+    }
+    .kicker {
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+      font-size: 12px;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+    .dot { width: 8px; height: 8px; border-radius: 999px; background: var(--accent); box-shadow: 0 0 0 4px rgba(94,234,212,.15); }
+    h1 { margin: 0 0 8px; font-size: clamp(28px, 4vw, 40px); letter-spacing: -.02em; }
+    .sub { margin: 0; color: var(--muted); font-size: 15px; }
+    section {
+      margin-top: 22px;
+      padding: 22px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: var(--panel);
+    }
+    h2 {
+      margin: 0 0 14px;
+      font-size: 14px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .list { display: grid; gap: 14px; }
+    article {
+      padding: 16px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: var(--card);
+    }
+    article h3 { margin: 0 0 8px; font-size: 17px; line-height: 1.25; }
+    article p { margin: 0; color: var(--muted); font-size: 14px; }
+    .meta { margin-top: 10px; font-size: 13px; }
+    .cta {
+      margin-top: 22px;
+      padding: 18px;
+      border-radius: 16px;
+      border: 1px dashed var(--border);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px 16px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: linear-gradient(180deg, rgba(94,234,212,.18), rgba(129,140,248,.12));
+      color: var(--text);
+      font-weight: 600;
+      text-decoration: none !important;
+    }
+    .btn:hover { filter: brightness(1.05); }
+    footer { margin-top: 26px; color: var(--muted); font-size: 12px; text-align: center; }
+    @media (max-width: 520px) {
+      header { padding: 22px 16px; }
+      section { padding: 16px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header id="top">
+      <div class="kicker"><span class="dot" aria-hidden="true"></span> Newsletter</div>
+      <h1>{{ issue_title }}</h1>
+      <p class="sub">Curated AI news &amp; tools — {{ published_at }}</p>
+    </header>
+
+    <section aria-labelledby="top-news">
+      <h2 id="top-news">Top news</h2>
+      <div class="list">
+        {% for item in top_news %}
+        <article>
+          <h3><a href="{{ item.url }}">{{ item.title }}</a></h3>
+          {% if item.description %}<p>{{ item.description }}</p>{% endif %}
+          <div class="meta"><a href="{{ item.url }}">Read source →</a></div>
+        </article>
+        {% else %}
+        <article><p>No articles matched this issue.</p></article>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section aria-labelledby="gh-tools">
+      <h2 id="gh-tools">GitHub tools</h2>
+      <div class="list">
+        {% for repo in github_tools %}
+        <article>
+          <h3><a href="{{ repo.url }}">{{ repo.title }}</a></h3>
+          {% if repo.description %}<p>{{ repo.description }}</p>{% endif %}
+          <div class="meta"><a href="{{ repo.url }}">Open repository →</a></div>
+        </article>
+        {% else %}
+        <article><p>No repositories listed for this issue.</p></article>
+        {% endfor %}
+      </div>
+    </section>
+
+    <div class="cta" role="region" aria-label="Call to action">
+      <div>
+        <strong style="display:block;margin-bottom:4px;">Want the full experience?</strong>
+        <span style="color:var(--muted);font-size:14px;">Open the live page or visit our main site.</span>
+      </div>
+      {% if site_url %}
+      <a class="btn" href="{{ site_url }}">Visit full site</a>
+      {% else %}
+      <span class="btn" style="opacity:.65;cursor:default;">Thanks for reading</span>
+      {% endif %}
+    </div>
+
+    <footer>
+      Generated for subscribers. Links open in your browser as published by third parties.
+    </footer>
+  </div>
+</body>
+</html>
