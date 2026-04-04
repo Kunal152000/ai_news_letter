@@ -14,8 +14,8 @@ logger = logging.getLogger(__name__)
 mcp_server = Server("ai-news-mcp")
 
 _NEWSLETTER_FLOW = (
-    "Newsletter pipeline: (1) get_news (2) get_github_repos (3) merge news + repos lists "
-    "(4) filter_ai_news on the news articles only (5) deploy_newsletter_page with news_json "
+    "Newsletter pipeline: (1) get_news (2) get_github_repos (3) filter_ai_news on the news articles only (4) merge news + repos lists"
+    "(5) deploy_newsletter_page with news_json "
     "and github_repos_json OR prebuilt html_content (6) send_email with a short HTML summary "
     "and link to deploy result public_url."
 )
@@ -26,7 +26,7 @@ async def read_tools():
     return [
         Tool(
             name="get_news",
-            description="Fetch AI news articles using GNews.",
+            description="Fetch AI news from GNews and NewsData.io (merged, URL-deduped) for the query and date range.",
             inputSchema={
                 "type": "object",
                 "properties": {

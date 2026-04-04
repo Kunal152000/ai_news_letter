@@ -6,10 +6,10 @@ Python backend and **MCP (Model Context Protocol) server** that fetch AI-related
 
 ## What runs where
 
-| Component | Entry | Port (default) | Role |
-|-----------|--------|----------------|------|
-| **FastAPI app** | `app.main:app` | `8000` | REST: news routes, chat UI helper |
-| **MCP over HTTP/SSE** | `mcp_app.py` | `8001` | MCP tools for clients (Cursor, Claude Code, custom agents) |
+| Component             | Entry          | Port (default) | Role                                                       |
+| --------------------- | -------------- | -------------- | ---------------------------------------------------------- |
+| **FastAPI app**       | `app.main:app` | `8000`         | REST: `/chat` (MCP-backed agent)                           |
+| **MCP over HTTP/SSE** | `mcp_app.py`   | `8001`         | MCP tools for clients (Cursor, Claude Code, custom agents) |
 
 The chat route (`app/routes/chat.py`) uses `app/agent.py`, which connects to the MCP server at `http://127.0.0.1:8001/mcp/sse`. For full newsletter flows, **start the MCP server first**, then the API.
 
@@ -21,7 +21,7 @@ The chat route (`app/routes/chat.py`) uses `app/agent.py`, which connects to the
 2. **`get_github_repos`** — GitHub search (`query`).
 3. Merge lists; run **`filter_ai_news`** on **news articles only** (JSON array of `{title, description, url}`).
 4. **`deploy_newsletter_page`** — Either:
-   - pass **`html_content`** (full page), or  
+   - pass **`html_content`** (full page), or
    - pass **`news_json`** and optional **`github_repos_json`** so the server renders with **Jinja2** (`app/templates/newsletter.html.j2`).
 5. **`send_email`** — `recipients`, `subject`, `html_content` (short summary + link to `public_url` from step 4).
 
@@ -31,13 +31,13 @@ Each tool returns JSON text; failures include an `error` field where applicable.
 
 ## MCP tools
 
-| Tool | Module | Notes |
-|------|--------|--------|
-| `get_news` | `app/services/api_tools.py` | Needs `GNEWS_API_KEY` |
-| `get_github_repos` | `app/services/api_tools.py` | Unauthenticated GitHub API (rate limits apply) |
-| `filter_ai_news` | `app/services/api_tools.py` | OpenRouter; needs `OPENROUTER_API_KEY` (otherwise returns input unchanged) |
+| Tool                     | Module                                                   | Notes                                                                                       |
+| ------------------------ | -------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `get_news`               | `app/services/api_tools.py`                              | `GNEWS_API_KEY` and/or `NEWS_DATA_API_KEY`                                                  |
+| `get_github_repos`       | `app/services/api_tools.py`                              | Unauthenticated GitHub API (rate limits apply)                                              |
+| `filter_ai_news`         | `app/services/api_tools.py`                              | OpenRouter; needs `OPENROUTER_API_KEY` (otherwise returns input unchanged)                  |
 | `deploy_newsletter_page` | `app/services/vercel_deploy.py` + `newsletter_render.py` | Needs `VERCEL_TOKEN`, `VERCEL_PROJECT_ID`; optional `VERCEL_PROJECT_NAME`, `VERCEL_TEAM_ID` |
-| `send_email` | `app/services/email_sender.py` | SendGrid if `SENDGRID_API_KEY`, else SMTP (`EMAIL_USER`, `EMAIL_PASS`) |
+| `send_email`             | `app/services/email_sender.py`                           | SendGrid if `SENDGRID_API_KEY`, else SMTP (`EMAIL_USER`, `EMAIL_PASS`)                      |
 
 MCP wiring lives in `app/mcp_server.py`; SSE routes in `app/routes/mcp.py`.
 
@@ -49,7 +49,7 @@ MCP wiring lives in `app/mcp_server.py`; SSE routes in `app/routes/mcp.py`.
 
 - `GNEWS_API_KEY` — GNews search.
 - `OPENROUTER_API_KEY` — Article ranking in `filter_ai_news`.
-- `NEWS_DATA_API_KEY` — Optional; used by alternate news code paths if enabled.
+- `NEWS_DATA_API_KEY` — NewsData.io; merged into `get_news` with GNews when set.
 
 **Email**
 
@@ -81,14 +81,13 @@ ai_newsletter/
 │   ├── config/settings.py     # Env loading
 │   ├── routes/
 │   │   ├── mcp.py             # /mcp/sse, /mcp/messages
-│   │   ├── chat.py
-│   │   └── news.py
+│   │   └── chat.py            # POST /chat
 │   ├── services/
 │   │   ├── api_tools.py       # get_news, get_github_repos, filter_ai_news
 │   │   ├── email_sender.py
 │   │   ├── vercel_deploy.py
 │   │   ├── newsletter_render.py
-│   │   └── fetch_news_*.py
+│   │   └── fetch_news_NewsData.py
 │   ├── templates/
 │   │   └── newsletter.html.j2
 │   └── utils/filters.py
@@ -122,8 +121,10 @@ uv run python mcp_app.py
 **FastAPI API:**
 
 ```bash
-uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+uv run python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
+
+On some Windows setups, `uv run uvicorn ...` fails with `uv trampoline failed to canonicalize script path`. Using `python -m uvicorn` avoids that. Alternatively: `.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000`.
 
 **Cursor / Claude Code:** Point the MCP client at the SSE URL your deployment exposes (locally: `http://127.0.0.1:8001/mcp/sse`), using the transport your client expects (HTTP+SSE as implemented here).
 

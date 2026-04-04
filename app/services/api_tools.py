@@ -1,14 +1,29 @@
-import os
 import json
 import re
 import requests
-from typing import List, Dict, Optional
-from app.config.settings import GNEWS_API_KEY, OPENROUTER_API_KEY
+from typing import List, Dict
 
-def get_news(query: str, from_date: str, to_date: str) -> List[Dict]:
-    """
-    Fetch news based on a query and date range.
-    """
+from app.config.settings import GNEWS_API_KEY, OPENROUTER_API_KEY
+from app.services.fetch_news_NewsData import fetch_newsdata_search
+
+
+def _normalize_url_key(url: str) -> str:
+    return (url or "").strip().lower().rstrip("/")
+
+
+def _dedupe_articles_by_url(items: List[Dict]) -> List[Dict]:
+    seen: set[str] = set()
+    out: List[Dict] = []
+    for it in items:
+        key = _normalize_url_key(it.get("url", ""))
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        out.append(it)
+    return out
+
+
+def _fetch_gnews(query: str, from_date: str, to_date: str) -> List[Dict]:
     if not GNEWS_API_KEY:
         print("Error: GNEWS_API_KEY is missing.")
         return []
@@ -21,26 +36,34 @@ def get_news(query: str, from_date: str, to_date: str) -> List[Dict]:
         "max": 10,
         "sortby": "relevance",
         "from": from_date,
-        "to": to_date
+        "to": to_date,
     }
-    
     try:
         response = requests.get(url, params=params, headers={"Accept": "application/json"}, timeout=10)
         response.raise_for_status()
         data = response.json()
         articles = data.get("articles", [])
-        
         return [
             {
                 "title": a.get("title", ""),
                 "description": a.get("description", ""),
-                "url": a.get("url", "")
+                "url": a.get("url", ""),
             }
             for a in articles
         ]
     except Exception as e:
-        print(f"Error fetching news: {e}")
+        print(f"Error fetching GNews: {e}")
         return []
+
+
+def get_news(query: str, from_date: str, to_date: str) -> List[Dict]:
+    """
+    Fetch news from GNews and NewsData.io, merge into one list (deduped by URL).
+    Either source may be empty if its API key is missing or the request fails.
+    """
+    gnews_articles = _fetch_gnews(query, from_date, to_date)
+    newsdata_articles = fetch_newsdata_search(query, from_date, to_date)
+    return _dedupe_articles_by_url(gnews_articles + newsdata_articles)
 
 def get_github_repos(query: str) -> List[Dict]:
     """

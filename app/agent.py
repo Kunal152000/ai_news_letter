@@ -17,7 +17,7 @@ async def process_chat_query(query: str) -> str:
     
     if not OPENROUTER_API_KEY:
         return "Error: OPENROUTER_API_KEY is not set."
-        
+        # AsyncExitStack used to call multiple async functions and ensure they are cleaned up properly
     async with AsyncExitStack() as stack:
         try:
             # Connect to MCP server over network (SSE)
@@ -42,8 +42,8 @@ async def process_chat_query(query: str) -> str:
             # 2. Call OpenRouter LLM
             system_prompt = (
                 "You are an AI assistant that fetches and analyzes AI news and tools. "
-                "Use tools instead of inventing facts or URLs. "
-                "For newsletter requests: call get_news, get_github_repos, merge lists, run filter_ai_news "
+                "Use tools instead of inventing facts or URLs."
+                "For newsletter requests: call get_news, get_github_repos,run filter_ai_news, merge lists "
                 "only on news articles, then deploy_newsletter_page with news_json and github_repos_json "
                 "(or html_content), then send_email with a brief HTML summary and the deployed public_url. "
                 "Use date range for news when the user does not specify (last 7 days). "

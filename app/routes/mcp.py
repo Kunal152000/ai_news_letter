@@ -1,7 +1,7 @@
 from fastapi import Request, Response
 from mcp.server.sse import SseServerTransport
 from app.mcp_server import mcp_server
-
+# This is the transport layer for the MCP server, from here it goes to the MCP server and then to the OpenRouter API
 sse = SseServerTransport("/mcp/messages")
 
 async def handle_sse(scope, receive, send):

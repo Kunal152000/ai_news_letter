@@ -1,53 +1,79 @@
 import requests
-from datetime import datetime, timedelta
-from typing import List, Dict, Optional
-import os
+from typing import List, Dict
 
 from app.config.settings import NEWS_DATA_API_KEY
 
-def fetch_ai_news_news_data() -> Optional[List[Dict]]:
+_NEWSDATA_BASE = "https://newsdata.io/api/1"
+
+
+def _normalize_newsdata_results(articles: list) -> List[Dict]:
+    structured: List[Dict] = []
+    for article in articles:
+        desc = article.get("description") or ""
+        if not desc and article.get("content"):
+            desc = (article.get("content") or "")[:500]
+        structured.append(
+            {
+                "title": article.get("title", ""),
+                "description": desc,
+                "url": article.get("link", ""),
+            }
+        )
+    return structured
+
+
+def fetch_newsdata_search(query: str, from_date: str, to_date: str) -> List[Dict]:
     """
-    Fetch AI-related news from the Mediastack API.
-    Handles timeout, error handling, and status code checks.
+    Fetch news from NewsData.io for a query and date range.
+    Tries the archive endpoint first (respects from_date/to_date); falls back to /latest (past 48h).
     """
     if not NEWS_DATA_API_KEY:
         print("Error: NEWS_DATA_API_KEY is missing.")
-        return None
-    # This api only provides data from past 48 hours
-    url = "https://newsdata.io/api/1/latest"
-    params = {
+        return []
+
+    q = (query or "").strip() or "artificial intelligence OR machine learning"
+    if len(q) > 512:
+        q = q[:512]
+
+    headers = {"Accept": "application/json"}
+    common = {
         "apikey": NEWS_DATA_API_KEY,
-        "q":"AI OR artificial intelligence OR machine learning OR LLM OR generative AI OR ChatGPT OR OpenAI",
-        "language":"en",
-        "category":"technology",    
-        "sort":"relevancy"
+        "q": q,
+        "language": "en",
+        "sort": "relevancy",
+        "size": 10,
     }
-    
+
     try:
-        response = requests.get(url, params=params,  headers={"Accept": "application/json"}, timeout=10)
-        response.raise_for_status()
-        
-        data = response.json()
-        print("data", data)
-        articles = data.get("results", [])
-        
-        structured_articles = []
-        for article in articles:
-            structured_articles.append({
-                "title": article.get("title", ""),
-                "description": article.get("description", ""),
-                "url": article.get("link", ""),
-            })
-        # print("Structured articles", structured_articles)
-        if structured_articles:
-            return structured_articles
-        else:
-            print("Error: No articles fetched from NEWS_DATA api")
-            return None
-        
+        r = requests.get(
+            f"{_NEWSDATA_BASE}/archive",
+            params={**common, "from_date": from_date, "to_date": to_date},
+            headers=headers,
+            timeout=10,
+        )
+        if r.status_code == 200:
+            data = r.json()
+            if data.get("status") == "success":
+                return _normalize_newsdata_results(data.get("results", []))
+    except requests.exceptions.RequestException as e:
+        print(f"NewsData archive request failed: {e}")
+
+    try:
+        r = requests.get(
+            f"{_NEWSDATA_BASE}/latest",
+            params={**common, "category": "technology"},
+            headers=headers,
+            timeout=10,
+        )
+        r.raise_for_status()
+        data = r.json()
+        if data.get("status") != "success":
+            print(f"NewsData latest API status: {data.get('status', data)}")
+            return []
+        return _normalize_newsdata_results(data.get("results", []))
     except requests.exceptions.Timeout:
         print("Error: The request to NEWS_DATA API timed out.")
-        return None
+        return []
     except requests.exceptions.RequestException as e:
         print(f"Error fetching news from NEWS_DATA API: {e}")
-        return None
+        return []
