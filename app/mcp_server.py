@@ -143,7 +143,12 @@ async def read_tools():
         ),
         Tool(
             name="send_email",
-            description="Send HTML email via resend (if RESEND_API_KEY)" + _NEWSLETTER_FLOW,
+            description=(
+                "Send email via Gmail SMTP. Prefer issue_url from deploy_newsletter_page plus highlights[] "
+                "(short teaser lines from the news) for a welcoming digest with CTA; optional html_content appends. "
+                "Or send raw html_content only without issue_url. "
+            )
+            + _NEWSLETTER_FLOW,
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -153,9 +158,25 @@ async def read_tools():
                         "description": "Recipient email addresses.",
                     },
                     "subject": {"type": "string"},
-                    "html_content": {"type": "string", "description": "HTML body (e.g. summary + link)."},
+                    "issue_url": {
+                        "type": "string",
+                        "description": "public_url from deploy_newsletter_page. Wraps body in a welcoming template + CTA.",
+                    },
+                    "highlights": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "3–8 short teaser lines (headlines or one-line summaries); detail on the web page.",
+                    },
+                    "issue_title": {
+                        "type": "string",
+                        "description": "Optional email headline (default: friendly generic title).",
+                    },
+                    "html_content": {
+                        "type": "string",
+                        "description": "Optional extra HTML block inside the digest, or sole body if issue_url omitted.",
+                    },
                 },
-                "required": ["recipients", "subject", "html_content"],
+                "required": ["recipients", "subject"],
             },
         ),
     ]
@@ -262,8 +283,20 @@ async def handle_call_tool(name: str, arguments: dict):
         try:
             recipients = arguments.get("recipients") or []
             subject = arguments.get("subject") or ""
-            body = arguments.get("html_content") or ""
-            out = send_email(recipients, subject, body)
+            body = arguments.get("html_content")
+            issue_url = arguments.get("issue_url")
+            highlights = arguments.get("highlights")
+            issue_title = arguments.get("issue_title")
+            if highlights is not None and not isinstance(highlights, list):
+                highlights = None
+            out = send_email(
+                recipients,
+                subject,
+                body,
+                issue_url=issue_url,
+                highlights=highlights,
+                issue_title=issue_title,
+            )
             logger.info("send_email: success=%s provider=%s", out.get("success"), out.get("provider"))
             return [TextContent(type="text", text=json.dumps(out))]
         except Exception as e:

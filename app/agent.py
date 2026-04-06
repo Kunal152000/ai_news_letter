@@ -47,7 +47,8 @@ async def process_chat_query(query: str) -> str:
                 "get_news output—never put that array inside a string (URLs break JSON escaping). "
                 "For deploy_newsletter_page, pass `news` and optional `github_repos` as JSON arrays the same way. "
                 "Newsletter flow: get_news → get_github_repos → filter_ai_news(articles=[...]) → "
-                "deploy_newsletter_page(news=[...], github_repos=[...]) → send_email with summary + public_url. "
+                "deploy_newsletter_page(news=[...], github_repos=[...]) → send_email with issue_url=public_url, "
+                "highlights=[short teaser lines from top stories], subject, recipients; optional html_content. "
                 "If the user does not specify dates, use the last 7 days for get_news. "
                 "Format final answers clearly for the user."
             )
