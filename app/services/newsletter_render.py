@@ -10,8 +10,6 @@ from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from app.config.settings import NEWSLETTER_SITE_URL
-
 logger = logging.getLogger(__name__)
 
 _TEMPLATE_DIR = Path(__file__).resolve().parent.parent / "templates"
@@ -28,7 +26,6 @@ def render_newsletter_html(
     *,
     issue_title: str = "AI Weekly",
     published_at: str | None = None,
-    site_url: str | None = None,
 ) -> str:
     """
     Build a full HTML document from structured tool outputs (title, description, url).
@@ -36,7 +33,6 @@ def render_newsletter_html(
     github_items = github_items or []
     if published_at is None:
         published_at = datetime.now(timezone.utc).strftime("%B %d, %Y")
-    site = site_url or NEWSLETTER_SITE_URL or ""
 
     try:
         tpl = _env.get_template("newsletter.html.j2")
@@ -45,7 +41,6 @@ def render_newsletter_html(
             published_at=published_at,
             top_news=news_items,
             github_tools=github_items,
-            site_url=site,
         )
         logger.debug("render_newsletter_html: %s news, %s repos", len(news_items), len(github_items))
         return html

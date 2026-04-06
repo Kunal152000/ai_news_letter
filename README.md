@@ -63,10 +63,6 @@ MCP wiring lives in `app/mcp_server.py`; SSE routes in `app/routes/mcp.py`.
 - `VERCEL_PROJECT_NAME` — Project name/slug for the deployments API (if omitted, the code tries to resolve it via the Vercel API).
 - `VERCEL_TEAM_ID` — Optional, for team-owned projects.
 
-**Newsletter page**
-
-- `NEWSLETTER_SITE_URL` — Optional “Visit full site” URL in the rendered HTML.
-
 ---
 
 ## Project layout (main files)

@@ -13,7 +13,7 @@ async def process_chat_query(query: str) -> str:
     gets available tools, passes them to OpenRouter LLM,
     and executes tools if the LLM decides to.
     """
-    mcp_url = "http://127.0.0.1:8001/mcp/sse"
+    mcp_url = "https://ai-news-letter-b9lx.onrender.com/mcp/sse"
     
     if not OPENROUTER_API_KEY:
         return "Error: OPENROUTER_API_KEY is not set."
