@@ -13,11 +13,39 @@ logger = logging.getLogger(__name__)
 
 mcp_server = Server("ai-news-mcp")
 
+# Shared JSON-Schema fragment for news/repo rows (avoid nested JSON strings in tool args).
+_ARTICLE_ITEM_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "title": {"type": "string"},
+        "description": {"type": "string"},
+        "url": {"type": "string"},
+    },
+}
+
+
+def _coerce_article_list(arguments: dict, *, array_key: str, json_key: str) -> tuple[list | None, str | None]:
+    """Prefer native JSON array on the tool call; fall back to legacy JSON string."""
+    raw = arguments.get(array_key)
+    if raw is not None:
+        if isinstance(raw, list):
+            return raw, None
+        return None, f"{array_key} must be a JSON array, not {type(raw).__name__}"
+    blob = arguments.get(json_key)
+    if blob is not None and str(blob).strip():
+        try:
+            data = json.loads(blob) if isinstance(blob, str) else blob
+        except json.JSONDecodeError as e:
+            return None, f"Invalid {json_key} (malformed JSON, often caused by quotes in URLs): {e}"
+        if isinstance(data, list):
+            return data, None
+        return None, f"{json_key} must be a JSON array"
+    return None, None
+
 _NEWSLETTER_FLOW = (
-    "Newsletter pipeline: (1) get_news (2) get_github_repos (3) filter_ai_news on the news articles only (4) merge news + repos lists"
-    "(5) deploy_newsletter_page with news_json "
-    "and github_repos_json OR prebuilt html_content (6) send_email with a short HTML summary "
-    "and link to deploy result public_url."
+    "Newsletter pipeline: (1) get_news (2) get_github_repos (3) filter_ai_news with `articles` array "
+    "(4) deploy_newsletter_page with `news` array + optional `github_repos` or html_content "
+    "(5) send_email with summary + public_url. Use JSON arrays for article lists, not stringified JSON."
 )
 
 
@@ -53,25 +81,35 @@ async def read_tools():
         ),
         Tool(
             name="filter_ai_news",
-            description="Filter and rank news articles (pass news items only, not GitHub repos). "
-            + _NEWSLETTER_FLOW,
+            description=(
+                "Filter and rank news articles (news only, not GitHub repos). "
+                "IMPORTANT: pass `articles` as a JSON array of objects (title, description, url). "
+                "Do NOT use a string field with JSON inside it—URLs break escaping. "
+                + _NEWSLETTER_FLOW
+            ),
             inputSchema={
                 "type": "object",
                 "properties": {
+                    "articles": {
+                        "type": "array",
+                        "description": "Output of get_news (array of {title, description, url}).",
+                        "items": _ARTICLE_ITEM_SCHEMA,
+                    },
                     "articles_json": {
                         "type": "string",
-                        "description": "JSON array of objects with title, description, url.",
-                    }
+                        "description": "Legacy only: escaped JSON array string. Prefer `articles`.",
+                    },
                 },
-                "required": ["articles_json"],
+                "required": [],
             },
         ),
         Tool(
             name="deploy_newsletter_page",
             description=(
                 "Deploy static newsletter HTML to Vercel (existing project). "
-                "Either pass html_content OR pass news_json (array JSON string) to render with Jinja2; "
-                "github_repos_json optional. Returns public_url. "
+                "Either pass html_content OR pass `news` as a JSON array for Jinja render; "
+                "optional `github_repos` array. Prefer arrays over news_json/github_repos_json strings. "
+                "Returns public_url. "
             )
             + _NEWSLETTER_FLOW,
             inputSchema={
@@ -79,15 +117,25 @@ async def read_tools():
                 "properties": {
                     "html_content": {
                         "type": "string",
-                        "description": "Full HTML document. If empty, news_json is required.",
+                        "description": "Full HTML document. If empty, pass `news` array.",
+                    },
+                    "news": {
+                        "type": "array",
+                        "description": "Filtered news rows {title, description, url}.",
+                        "items": _ARTICLE_ITEM_SCHEMA,
+                    },
+                    "github_repos": {
+                        "type": "array",
+                        "description": "Optional GitHub rows {title, description, url}.",
+                        "items": _ARTICLE_ITEM_SCHEMA,
                     },
                     "news_json": {
                         "type": "string",
-                        "description": "JSON array of {title, description, url} for server-side template render.",
+                        "description": "Legacy: JSON array string. Prefer `news`.",
                     },
                     "github_repos_json": {
                         "type": "string",
-                        "description": "Optional JSON array of {title, description, url} (GitHub repos).",
+                        "description": "Legacy: JSON array string. Prefer `github_repos`.",
                     },
                 },
                 "required": [],
@@ -95,7 +143,7 @@ async def read_tools():
         ),
         Tool(
             name="send_email",
-            description="Send HTML email via SendGrid (if SENDGRID_API_KEY) or SMTP. " + _NEWSLETTER_FLOW,
+            description="Send HTML email via resend (if RESEND_API_KEY)" + _NEWSLETTER_FLOW,
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -117,27 +165,17 @@ def _resolve_newsletter_html(arguments: dict) -> tuple[str | None, str | None]:
     raw_html = (arguments.get("html_content") or "").strip()
     if raw_html:
         return raw_html, None
-    news_json = arguments.get("news_json")
-    if not news_json or not str(news_json).strip():
-        return None, "Provide html_content or news_json"
-    try:
-        news = json.loads(news_json)
-        if not isinstance(news, list):
-            return None, "news_json must be a JSON array"
-    except json.JSONDecodeError as e:
-        return None, f"Invalid news_json: {e}"
 
-    repos = []
-    gh = arguments.get("github_repos_json")
-    if gh and str(gh).strip():
-        try:
-            parsed = json.loads(gh)
-            if isinstance(parsed, list):
-                repos = parsed
-            else:
-                return None, "github_repos_json must be a JSON array"
-        except json.JSONDecodeError as e:
-            return None, f"Invalid github_repos_json: {e}"
+    news, nerr = _coerce_article_list(arguments, array_key="news", json_key="news_json")
+    if nerr:
+        return None, nerr
+    if not news:
+        return None, "Provide html_content, or `news` as a JSON array (or legacy news_json)"
+
+    repos, gerr = _coerce_article_list(arguments, array_key="github_repos", json_key="github_repos_json")
+    if gerr:
+        return None, gerr
+    repos = repos or []
 
     try:
         html = render_newsletter_html(news, repos)
@@ -175,8 +213,33 @@ async def handle_call_tool(name: str, arguments: dict):
 
     if name == "filter_ai_news":
         try:
-            parsed = json.loads(arguments.get("articles_json") or "[]")
-            filtered = filter_ai_news(parsed)
+            articles, err = _coerce_article_list(arguments, array_key="articles", json_key="articles_json")
+            if err:
+                return [TextContent(type="text", text=json.dumps({"error": err}))]
+            if articles is None:
+                return [
+                    TextContent(
+                        type="text",
+                        text=json.dumps(
+                            {
+                                "error": "Missing articles: pass `articles` as a JSON array from get_news "
+                                "(do not stringify the array)."
+                            }
+                        ),
+                    )
+                ]
+            normalized = []
+            for a in articles:
+                if not isinstance(a, dict):
+                    continue
+                normalized.append(
+                    {
+                        "title": str(a.get("title", "") or ""),
+                        "description": str(a.get("description", "") or ""),
+                        "url": str(a.get("url", "") or ""),
+                    }
+                )
+            filtered = filter_ai_news(normalized)
             logger.info("filter_ai_news: %s items", len(filtered))
             return [TextContent(type="text", text=json.dumps(filtered))]
         except Exception as e:

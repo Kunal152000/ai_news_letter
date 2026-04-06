@@ -14,6 +14,7 @@ RESEND_API_KEY = os.getenv("RESEND_API_KEY")
 VERCEL_TOKEN = os.getenv("VERCEL_TOKEN")
 VERCEL_PROJECT_ID = os.getenv("VERCEL_PROJECT_ID")
 VERCEL_PROJECT_NAME = os.getenv("VERCEL_PROJECT_NAME")
+# VERCEL_TEAM_ID = os.getenv("VERCEL_TEAM_ID")
 
 if not GNEWS_API_KEY:
     print("Warning: GNEWS_API_KEY is not set in the environment variables.")

@@ -17,7 +17,7 @@ async def process_chat_query(query: str) -> str:
     
     if not OPENROUTER_API_KEY:
         return "Error: OPENROUTER_API_KEY is not set."
-        # AsyncExitStack used to call multiple async functions and ensure they are cleaned up properly
+
     async with AsyncExitStack() as stack:
         try:
             # Connect to MCP server over network (SSE)
@@ -42,12 +42,14 @@ async def process_chat_query(query: str) -> str:
             # 2. Call OpenRouter LLM
             system_prompt = (
                 "You are an AI assistant that fetches and analyzes AI news and tools. "
-                "Use tools instead of inventing facts or URLs."
-                "For newsletter requests: call get_news, get_github_repos,run filter_ai_news, merge lists "
-                "only on news articles, then deploy_newsletter_page with news_json and github_repos_json "
-                "(or html_content), then send_email with a brief HTML summary and the deployed public_url. "
-                "Use date range for news when the user does not specify (last 7 days). "
-                "When returning results, format them clearly for the user."
+                "Use tools instead of inventing facts or URLs. "
+                "When calling filter_ai_news, pass the `articles` parameter as a JSON array copied from "
+                "get_news output—never put that array inside a string (URLs break JSON escaping). "
+                "For deploy_newsletter_page, pass `news` and optional `github_repos` as JSON arrays the same way. "
+                "Newsletter flow: get_news → get_github_repos → filter_ai_news(articles=[...]) → "
+                "deploy_newsletter_page(news=[...], github_repos=[...]) → send_email with summary + public_url. "
+                "If the user does not specify dates, use the last 7 days for get_news. "
+                "Format final answers clearly for the user."
             )
             
             messages = [
@@ -68,7 +70,7 @@ async def process_chat_query(query: str) -> str:
                 "tool_choice": "auto"
             }
             
-            max_rounds = 12
+            max_rounds = 100
             async with httpx.AsyncClient(timeout=120.0) as client:
                 for _round in range(max_rounds):
                     payload["messages"] = messages
