@@ -3,6 +3,23 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
+def get_mcp_sse_url() -> str:
+    """
+    URL the chat agent uses to reach the MCP SSE endpoint.
+    On Fly.io (or any single-host deploy), default http://127.0.0.1:$PORT/mcp/sse hits the same process.
+    Set MCP_SSE_URL or PUBLIC_BASE_URL when the client must use a public URL.
+    """
+    explicit = (os.getenv("MCP_SSE_URL") or "").strip()
+    if explicit:
+        return explicit
+    base = (os.getenv("PUBLIC_BASE_URL") or "").strip().rstrip("/")
+    if base:
+        return f"{base}/mcp/sse"
+    port = (os.getenv("PORT") or "8000").strip()
+    return f"http://127.0.0.1:{port}/mcp/sse"
+
+
 GNEWS_API_KEY = os.getenv("GNEWS_API_KEY")
 NEWS_DATA_API_KEY = os.getenv("NEWS_DATA_API_KEY")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")

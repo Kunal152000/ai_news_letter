@@ -6,12 +6,13 @@ Python backend and **MCP (Model Context Protocol) server** that fetch AI-related
 
 ## What runs where
 
-| Component             | Entry          | Port (default) | Role                                                       |
-| --------------------- | -------------- | -------------- | ---------------------------------------------------------- |
-| **FastAPI app**       | `app.main:app` | `8000`         | REST: `/chat` (MCP-backed agent)                           |
-| **MCP over HTTP/SSE** | `mcp_app.py`   | `8001`         | MCP tools for clients (Cursor, Claude Code, custom agents) |
+| Component | Entry | Role |
+| --------- | ----- | ---- |
+| **Unified app (recommended)** | `app.main:app` | `GET /`, `POST /chat`, **`GET /mcp/sse`**, **`POST /mcp/messages`** — one process (local, **Fly.io**, Docker). |
 
-The chat route (`app/routes/chat.py`) uses `app/agent.py`, which connects to the MCP server at `http://127.0.0.1:8001/mcp/sse`. For full newsletter flows, **start the MCP server first**, then the API.
+`app/agent.py` calls MCP at **`http://127.0.0.1:$PORT/mcp/sse`** by default (same machine). Override with **`MCP_SSE_URL`** or **`PUBLIC_BASE_URL`** if needed.
+
+Optional legacy: **`mcp_app.py`** runs MCP only on port `8001` for local debugging.
 
 ---
 
@@ -62,7 +63,11 @@ MCP wiring lives in `app/mcp_server.py`; SSE routes in `app/routes/mcp.py`.
 - `SMTP_PORT` — Optional override when using `starttls` or `ssl` mode.
 - `SMTP_TIMEOUT` — Seconds (default `30`).
 
-Some PaaS providers restrict outbound SMTP; if both ports fail on Render, check [Render’s networking docs](https://render.com/docs) or use a provider that allows SMTP.
+**Deploy / MCP URL**
+
+- `PORT` — Listen port (default `8000` locally; **Fly.io sets this**, usually `8080`).
+- `MCP_SSE_URL` — Full SSE URL if the agent must not use loopback (rare on single-host deploys).
+- `PUBLIC_BASE_URL` — e.g. `https://your-app.fly.dev`; agent uses `{PUBLIC_BASE_URL}/mcp/sse` when set and `MCP_SSE_URL` is unset.
 
 **Vercel**
 
@@ -77,14 +82,16 @@ Some PaaS providers restrict outbound SMTP; if both ports fail on Render, check 
 
 ```
 ai_newsletter/
-├── mcp_app.py                 # ASGI entry: MCP SSE on :8001
+├── Dockerfile
+├── fly.toml
+├── mcp_app.py                 # Optional: MCP-only dev server on :8001
 ├── app/
-│   ├── main.py                # FastAPI app
+│   ├── main.py                # FastAPI + MCP mount at /mcp
 │   ├── agent.py               # OpenRouter + MCP client (multi-round tools)
 │   ├── mcp_server.py          # MCP tool definitions & handlers
 │   ├── config/settings.py     # Env loading
 │   ├── routes/
-│   │   ├── mcp.py             # /mcp/sse, /mcp/messages
+│   │   ├── mcp.py             # MCP ASGI handlers + mount sub-app
 │   │   └── chat.py            # POST /chat
 │   ├── services/
 │   │   ├── api_tools.py       # get_news, get_github_repos, filter_ai_news
@@ -114,23 +121,40 @@ Create a `.env` in the project root with the variables you need (see above). Do 
 
 ---
 
-## Running
+## Running (local)
 
-**MCP server (required for tool-using chat):**
-
-```bash
-uv run python mcp_app.py
-```
-
-**FastAPI API:**
+**Single process (chat + MCP):**
 
 ```bash
 uv run python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-On some Windows setups, `uv run uvicorn ...` fails with `uv trampoline failed to canonicalize script path`. Using `python -m uvicorn` avoids that. Alternatively: `.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000`.
+- Chat: `POST http://127.0.0.1:8000/chat`
+- MCP SSE: `http://127.0.0.1:8000/mcp/sse`
 
-**Cursor / Claude Code:** Point the MCP client at the SSE URL your deployment exposes (locally: `http://127.0.0.1:8001/mcp/sse`), using the transport your client expects (HTTP+SSE as implemented here).
+On some Windows setups, `uv run uvicorn ...` fails; use `python -m uvicorn` as above.
+
+**Optional:** `uv run python mcp_app.py` — MCP only on `http://127.0.0.1:8001/mcp/sse` (then set `MCP_SSE_URL` for `/chat`).
+
+## Deploy on Fly.io
+
+1. Install [flyctl](https://fly.io/docs/hands-on/install-flyctl/), log in.
+2. Edit **`fly.toml`** → set `app = "your-unique-app-name"`.
+3. From the repo root:
+
+```bash
+fly launch --no-deploy   # merge generated config with existing fly.toml if prompted
+fly secrets set GNEWS_API_KEY=... OPENROUTER_API_KEY=... SMTP_GMAIL_ADDRESS=... SMTP_GMAIL_PASSWORD=... EMAIL_FROM=... VERCEL_TOKEN=... VERCEL_PROJECT_ID=... VERCEL_PROJECT_NAME=...
+fly deploy
+```
+
+4. Open **`https://<your-app>.fly.dev`** — health `GET /`. MCP clients: **`https://<your-app>.fly.dev/mcp/sse`**.
+
+The **Dockerfile** uses `uv sync` and listens on **`PORT`** (Fly sets this to match `internal_port` in `fly.toml`, default **8080**).
+
+Gmail SMTP from Fly machines is generally allowed on ports **587/465** (unlike Render’s free tier, which blocks outbound SMTP).
+
+**Cursor / Claude Code:** Use your public **`https://…/mcp/sse`** when the IDE runs outside the Fly network.
 
 ---
 

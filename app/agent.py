@@ -5,15 +5,13 @@ import httpx
 from contextlib import AsyncExitStack
 from mcp import ClientSession
 from mcp.client.sse import sse_client
-from app.config.settings import OPENROUTER_API_KEY
+from app.config.settings import OPENROUTER_API_KEY, get_mcp_sse_url
 
 async def process_chat_query(query: str) -> str:
     """
-    Connects to the local MCP server over SSE,
-    gets available tools, passes them to OpenRouter LLM,
-    and executes tools if the LLM decides to.
+    Connects to the MCP server over SSE (same app on Fly.io via 127.0.0.1:$PORT, or set MCP_SSE_URL).
     """
-    mcp_url = "https://ai-news-letter-b9lx.onrender.com/mcp/sse"
+    mcp_url = get_mcp_sse_url()
     
     if not OPENROUTER_API_KEY:
         return "Error: OPENROUTER_API_KEY is not set."

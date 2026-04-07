@@ -291,7 +291,14 @@ def _smtp_failure(errors: list[str]) -> dict[str, Any]:
     detail = "; ".join(errors) if errors else "unknown"
     logger.error("send_email: all SMTP attempts failed: %s", detail)
     hint = (
-        " Use SMTP_MODE=starttls or SMTP_MODE=ssl and SMTP_PORT if needed. "
-        "Some hosts block outbound SMTP; check your platform’s docs (e.g. Render)."
+        " Try SMTP_MODE=starttls or SMTP_MODE=ssl if only one port is blocked. "
+        "If you see 'Network is unreachable' (errno 101) on both 587 and 465, the host is not routing "
+        "to SMTP at all."
     )
+    if "101" in detail or "Network is unreachable" in detail or "unreachable" in detail.lower():
+        hint += (
+            " Render’s free web services block outbound SMTP (ports 25, 465, 587)—use a paid Render "
+            "instance for Gmail SMTP, or send mail from your laptop/local server, or use an email "
+            "provider’s HTTPS API instead of SMTP."
+        )
     return {"success": False, "error": f"SMTP failed ({detail}).{hint}", "provider": "smtp"}

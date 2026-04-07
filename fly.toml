@@ -1,0 +1,26 @@
+# Deploy: install flyctl, then `fly launch` (merge into this file) or set `app` and `fly deploy`.
+# https://fly.io/docs/languages-and-frameworks/docker/
+
+app = "ai-newsletter"
+primary_region = "iad"
+
+[build]
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    grace_period = "15s"
+    interval = "30s"
+    method = "GET"
+    timeout = "5s"
+    path = "/"
+
+[[vm]]
+  memory = "512mb"
+  cpu_kind = "shared"
+  cpus = 1
