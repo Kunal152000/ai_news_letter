@@ -1,19 +1,10 @@
-# Two Web Services: MCP (tools + SSE) and API (POST /chat).
-# After deploy, set on the API service: MCP_SSE_URL=https://<mcp-service-name>.onrender.com/mcp/sse
-# Add the same secrets (Resend, Vercel, news keys, etc.) to both services or use an Environment Group.
+# One Web Service: /chat + /mcp/sse on the same URL (see app.main:app).
+# Render sets RENDER_EXTERNAL_URL; the app uses it so the agent calls the correct /mcp/sse automatically.
+# Optional: second service with `python mcp_app.py` only if you want MCP on a different hostname (then set MCP_SSE_URL on the API service).
 
 services:
   - type: web
-    name: ai-newsletter-mcp
-    runtime: python
-    plan: free
-    region: oregon
-    buildCommand: pip install -r requirements.txt
-    startCommand: python mcp_app.py
-    healthCheckPath: /
-
-  - type: web
-    name: ai-newsletter-api
+    name: ai-newsletter
     runtime: python
     plan: free
     region: oregon

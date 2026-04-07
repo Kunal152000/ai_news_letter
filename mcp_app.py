@@ -44,6 +44,22 @@ async def mcp_asgi_app(scope, receive, send):
             await handle_sse(scope, receive, send)
         elif path == "/mcp/messages":
             await handle_messages(scope, receive, send)
+        elif path in ("/chat", "/api/chat"):
+            # Common mistake: MCP and API are separate Render services; /chat lives on FastAPI only.
+            hint = (
+                "This URL is the MCP server (tools + SSE). "
+                "POST /chat is on your API Web Service: startCommand must run "
+                "`python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT` and use that service’s hostname."
+            )
+            body = json.dumps({"detail": "Not Found", "hint": hint}).encode("utf-8")
+            await send(
+                {
+                    "type": "http.response.start",
+                    "status": 404,
+                    "headers": [[b"content-type", b"application/json"]],
+                }
+            )
+            await send({"type": "http.response.body", "body": body})
         else:
             await send(
                 {

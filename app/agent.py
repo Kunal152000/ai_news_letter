@@ -10,18 +10,16 @@ from app.config.settings import OPENROUTER_API_KEY, MCP_SSE_URL
 
 async def process_chat_query(query: str) -> str:
     """
-    Connects to the MCP server over SSE. Set MCP_SSE_URL to your Render MCP service (e.g. https://…/mcp/sse);
-    default http://127.0.0.1:8001/mcp/sse matches local mcp_app.py.
+    Connects to MCP over SSE. MCP_SSE_URL is set in settings (Render: defaults to RENDER_EXTERNAL_URL/mcp/sse).
     """
     mcp_url = MCP_SSE_URL
 
     on_render = (os.getenv("RENDER") or "").lower() in ("true", "1", "yes")
     if on_render and ("127.0.0.1" in mcp_url or "localhost" in mcp_url.lower()):
         return (
-            "Chat is misconfigured on Render: MCP_SSE_URL still points to localhost. "
-            "On the API Web Service, set MCP_SSE_URL to your other service’s SSE URL, e.g. "
-            "https://<your-mcp-service-name>.onrender.com/mcp/sse (HTTPS, no trailing slash issues). "
-            "Then redeploy or restart the API service."
+            "Chat is misconfigured on Render: MCP_SSE_URL points to localhost. "
+            "Clear MCP_SSE_URL to use the same host as this API (RENDER_EXTERNAL_URL), "
+            "or set MCP_SSE_URL to your dedicated MCP service https://…/mcp/sse."
         )
 
     if not OPENROUTER_API_KEY:
