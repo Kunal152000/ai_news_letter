@@ -5,13 +5,14 @@ import httpx
 from contextlib import AsyncExitStack
 from mcp import ClientSession
 from mcp.client.sse import sse_client
-from app.config.settings import OPENROUTER_API_KEY, get_mcp_sse_url
+from app.config.settings import OPENROUTER_API_KEY, MCP_SSE_URL
 
 async def process_chat_query(query: str) -> str:
     """
-    Connects to the MCP server over SSE (same app on Fly.io via 127.0.0.1:$PORT, or set MCP_SSE_URL).
+    Connects to the MCP server over SSE. Set MCP_SSE_URL to your Render MCP service (e.g. https://…/mcp/sse);
+    default http://127.0.0.1:8001/mcp/sse matches local mcp_app.py.
     """
-    mcp_url = get_mcp_sse_url()
+    mcp_url = MCP_SSE_URL
     
     if not OPENROUTER_API_KEY:
         return "Error: OPENROUTER_API_KEY is not set."

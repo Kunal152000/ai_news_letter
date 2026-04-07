@@ -1,0 +1,22 @@
+# Two Web Services: MCP (tools + SSE) and API (POST /chat).
+# After deploy, set on the API service: MCP_SSE_URL=https://<mcp-service-name>.onrender.com/mcp/sse
+# Add the same secrets (Resend, Vercel, news keys, etc.) to both services or use an Environment Group.
+
+services:
+  - type: web
+    name: ai-newsletter-mcp
+    runtime: python
+    plan: free
+    region: oregon
+    buildCommand: pip install -r requirements.txt
+    startCommand: python mcp_app.py
+    healthCheckPath: /
+
+  - type: web
+    name: ai-newsletter-api
+    runtime: python
+    plan: free
+    region: oregon
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /

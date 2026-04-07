@@ -3,7 +3,12 @@ import re
 import requests
 from typing import List, Dict
 
-from app.config.settings import GNEWS_API_KEY, OPENROUTER_API_KEY
+from app.config.settings import (
+    GNEWS_API_KEY,
+    OPENROUTER_API_KEY,
+    OPENROUTER_APP_TITLE,
+    OPENROUTER_HTTP_REFERER,
+)
 from app.services.fetch_news_NewsData import fetch_newsdata_search
 
 
@@ -123,6 +128,10 @@ Articles:
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         "Content-Type": "application/json",
     }
+    if OPENROUTER_HTTP_REFERER:
+        headers["HTTP-Referer"] = OPENROUTER_HTTP_REFERER
+    if OPENROUTER_APP_TITLE:
+        headers["X-Title"] = OPENROUTER_APP_TITLE
     data = {"model": "openrouter/free", "messages": [{"role": "user", "content": prompt}]}
     
     try:

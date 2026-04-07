@@ -144,9 +144,9 @@ async def read_tools():
         Tool(
             name="send_email",
             description=(
-                "Send email via Gmail SMTP. Prefer issue_url from deploy_newsletter_page plus highlights[] "
-                "(short teaser lines from the news) for a welcoming digest with CTA; optional html_content appends. "
-                "Or send raw html_content only without issue_url. "
+                "Send email via Resend (RESEND_API_KEY, EMAIL_FROM). Prefer issue_url from deploy_newsletter_page "
+                "plus highlights[] (4–8 teaser lines from live news) to fill the email's 'quick preview' block; "
+                "optional html_content appends after the preview. Or send raw html_content only without issue_url. "
             )
             + _NEWSLETTER_FLOW,
             inputSchema={
@@ -165,7 +165,7 @@ async def read_tools():
                     "highlights": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "3–8 short teaser lines (headlines or one-line summaries); detail on the web page.",
+                        "description": "4–8 lines shown under 'Here’s a quick preview' (real headlines/summaries from this issue).",
                     },
                     "issue_title": {
                         "type": "string",

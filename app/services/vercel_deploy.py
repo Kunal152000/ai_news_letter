@@ -11,7 +11,7 @@ import httpx
 from app.config.settings import (
     VERCEL_PROJECT_ID,
     VERCEL_PROJECT_NAME,
-    # VERCEL_TEAM_ID,
+    VERCEL_TEAM_ID,
     VERCEL_TOKEN,
 )
 
@@ -26,8 +26,8 @@ def _project_display_name() -> str | None:
     if not VERCEL_TOKEN or not VERCEL_PROJECT_ID:
         return None
     params: dict[str, str] = {}
-    # if VERCEL_TEAM_ID:
-    #     params["teamId"] = VERCEL_TEAM_ID
+    if VERCEL_TEAM_ID:
+        params["teamId"] = VERCEL_TEAM_ID
     try:
         with httpx.Client(timeout=15.0) as client:
             r = client.get(
@@ -83,8 +83,8 @@ def deploy_newsletter_page(html_content: str) -> dict[str, Any]:
     }
 
     params: dict[str, str] = {"skipAutoDetectionConfirmation": "1"}
-    # if VERCEL_TEAM_ID:
-    #     params["teamId"] = VERCEL_TEAM_ID
+    if VERCEL_TEAM_ID:
+        params["teamId"] = VERCEL_TEAM_ID
 
     try:
         with httpx.Client(timeout=45.0) as client:

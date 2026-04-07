@@ -1,13 +1,11 @@
 """
-Optional standalone MCP server on port 8001 (SSE only).
+Standalone MCP server (SSE) for Render or local dev.
 
-Production / Fly.io: use a single process instead:
-
-    uvicorn app.main:app --host 0.0.0.0 --port 8080
-
-That serves POST /chat, GET /mcp/sse, POST /mcp/messages together.
+Serve with: python mcp_app.py  (uses PORT from env on Render, default 8001 locally)
 """
+import json
 import logging
+import os
 
 import uvicorn
 
@@ -31,6 +29,17 @@ async def mcp_asgi_app(scope, receive, send):
 
     if scope["type"] == "http":
         path = scope["path"]
+        if path == "/":
+            body = json.dumps({"service": "mcp", "sse": "/mcp/sse"}).encode("utf-8")
+            await send(
+                {
+                    "type": "http.response.start",
+                    "status": 200,
+                    "headers": [[b"content-type", b"application/json"]],
+                }
+            )
+            await send({"type": "http.response.body", "body": body})
+            return
         if path == "/mcp/sse":
             await handle_sse(scope, receive, send)
         elif path == "/mcp/messages":
@@ -52,4 +61,6 @@ async def mcp_asgi_app(scope, receive, send):
 
 
 if __name__ == "__main__":
-    uvicorn.run(mcp_asgi_app, host="127.0.0.1", port=8001)
+    host = os.environ.get("HOST", "0.0.0.0")
+    port = int(os.environ.get("PORT", "8001"))
+    uvicorn.run(mcp_asgi_app, host=host, port=port)
