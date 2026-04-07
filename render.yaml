@@ -1,8 +1,6 @@
-# One Web Service: /chat + /mcp/sse on the same URL.
-# Start command (do NOT use mcp_app:mcp_asgi_app — that skips /chat):
-#   python -m uvicorn mcp_app:app --host 0.0.0.0 --port $PORT
-#   python mcp_app.py
-# On Render, `mcp_app:app` is app.main:app unless MCP_ONLY=1.
+# One Web Service: /chat + /mcp/sse on the same URL (see app.main:app).
+# Render sets RENDER_EXTERNAL_URL; the app uses it so the agent calls the correct /mcp/sse automatically.
+# Optional: second service with `python mcp_app.py` only if you want MCP on a different hostname (then set MCP_SSE_URL on the API service).
 
 services:
   - type: web
@@ -11,5 +9,5 @@ services:
     plan: free
     region: oregon
     buildCommand: pip install -r requirements.txt
-    startCommand: python -m uvicorn mcp_app:app --host 0.0.0.0 --port $PORT
+    startCommand: python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /

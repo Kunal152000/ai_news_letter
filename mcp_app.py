@@ -1,16 +1,7 @@
 """
-Deploy entrypoint for MCP and (on Render) the full API.
+Standalone MCP server (SSE) for Render or local dev.
 
-**Important:** If Render’s start command is `uvicorn mcp_app:mcp_asgi_app`, the combined-app branch in
-`__main__` is **never used**—Uvicorn loads `mcp_asgi_app` directly → no `POST /chat`.
-
-Use one of these instead (both respect `RENDER` + `MCP_ONLY`):
-
-- `uvicorn mcp_app:app --host 0.0.0.0 --port $PORT`
-- `python mcp_app.py`
-
-- **Local (no RENDER):** `app` is MCP-only (`/mcp/sse`, `/mcp/messages`) unless you use `app.main:app`.
-- **Render:** `app` is `app.main:app` (`/chat` + `/mcp`) unless env `MCP_ONLY=1`.
+Serve with: python mcp_app.py  (uses PORT from env on Render, default 8001 locally)
 """
 import json
 import logging
@@ -85,22 +76,7 @@ async def mcp_asgi_app(scope, receive, send):
             )
 
 
-def _select_served_asgi():
-    """ASGI app Uvicorn/Gunicorn should load (`uvicorn mcp_app:app`)."""
-    on_render = (os.getenv("RENDER") or "").lower() in ("true", "1", "yes")
-    mcp_only = (os.getenv("MCP_ONLY") or "").lower() in ("1", "true", "yes")
-    if on_render and not mcp_only:
-        from app.main import app as fastapi_app
-
-        return fastapi_app
-    return mcp_asgi_app
-
-
-# Use `uvicorn mcp_app:app` on Render — NOT `mcp_app:mcp_asgi_app`.
-app = _select_served_asgi()
-
-
 if __name__ == "__main__":
     host = os.environ.get("HOST", "0.0.0.0")
     port = int(os.environ.get("PORT", "8001"))
-    uvicorn.run(app, host=host, port=port)
+    uvicorn.run(mcp_asgi_app, host=host, port=port)
