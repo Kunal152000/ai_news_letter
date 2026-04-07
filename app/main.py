@@ -24,7 +24,7 @@ app.include_router(chat_router)
 def read_root():
     return {
         "message": "AI Newsletter API",
-        "chat": "POST/chat",
+        "chat": "POST /chat",
         "docs": "/docs",
     }
 

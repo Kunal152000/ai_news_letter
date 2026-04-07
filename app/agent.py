@@ -1,4 +1,5 @@
 import json
+import os
 import re
 import traceback
 import httpx
@@ -13,7 +14,16 @@ async def process_chat_query(query: str) -> str:
     default http://127.0.0.1:8001/mcp/sse matches local mcp_app.py.
     """
     mcp_url = MCP_SSE_URL
-    
+
+    on_render = (os.getenv("RENDER") or "").lower() in ("true", "1", "yes")
+    if on_render and ("127.0.0.1" in mcp_url or "localhost" in mcp_url.lower()):
+        return (
+            "Chat is misconfigured on Render: MCP_SSE_URL still points to localhost. "
+            "On the API Web Service, set MCP_SSE_URL to your other service’s SSE URL, e.g. "
+            "https://<your-mcp-service-name>.onrender.com/mcp/sse (HTTPS, no trailing slash issues). "
+            "Then redeploy or restart the API service."
+        )
+
     if not OPENROUTER_API_KEY:
         return "Error: OPENROUTER_API_KEY is not set."
 
