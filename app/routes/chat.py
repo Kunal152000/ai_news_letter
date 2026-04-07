@@ -19,7 +19,7 @@ async def chat_endpoint(req: ChatRequest):
     """
     try:
         answer = await process_chat_query(req.query)
-        return ChatResponse(response=answer)
+        return ChatResponse(response=answer if isinstance(answer, str) else str(answer or ""))
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))

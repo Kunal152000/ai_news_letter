@@ -91,7 +91,13 @@ async def process_chat_query(query: str) -> str:
                     messages.append(message)
 
                     if not message.get("tool_calls"):
-                        return message.get("content", "No final content.")
+                        # OpenRouter may send "content": null; .get(..., default) only applies when the key is missing.
+                        raw = message.get("content")
+                        if raw is None:
+                            return "No final content from the model."
+                        if isinstance(raw, str):
+                            return raw if raw.strip() else "No final content from the model."
+                        return str(raw)
 
                     for tool_call in message["tool_calls"]:
                         func_name = tool_call["function"]["name"]
