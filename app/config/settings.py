@@ -6,11 +6,19 @@ load_dotenv()
 GNEWS_API_KEY = os.getenv("GNEWS_API_KEY")
 NEWS_DATA_API_KEY = os.getenv("NEWS_DATA_API_KEY")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-# Email: SMTP (Gmail, etc.) or SendGrid (if SENDGRID_API_KEY is set, SendGrid wins)
+# Email: SMTP only (e.g. Gmail with an App Password)
 EMAIL_FROM = os.getenv("EMAIL_FROM")
 EMAIL_FROM_NAME = os.getenv("EMAIL_FROM_NAME", "AI Weekly")
 SMTP_GMAIL_ADDRESS = os.getenv("SMTP_GMAIL_ADDRESS")
 SMTP_GMAIL_PASSWORD = os.getenv("SMTP_GMAIL_PASSWORD")
+SMTP_HOST = (os.getenv("SMTP_HOST") or "smtp.gmail.com").strip()
+SMTP_MODE = (os.getenv("SMTP_MODE") or "auto").strip().lower()  # auto | starttls | ssl
+_p = (os.getenv("SMTP_PORT") or "").strip()
+SMTP_PORT = int(_p) if _p.isdigit() else None
+try:
+    SMTP_TIMEOUT = int(os.getenv("SMTP_TIMEOUT", "30"))
+except ValueError:
+    SMTP_TIMEOUT = 30
 ## Vercel static deploy (single index.html)  
 VERCEL_TOKEN = os.getenv("VERCEL_TOKEN")
 VERCEL_PROJECT_ID = os.getenv("VERCEL_PROJECT_ID")

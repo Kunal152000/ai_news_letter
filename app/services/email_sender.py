@@ -2,11 +2,21 @@ import html as html_module
 import logging
 import re
 import smtplib
+import ssl
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Any
 
-from app.config.settings import EMAIL_FROM, EMAIL_FROM_NAME, SMTP_GMAIL_ADDRESS, SMTP_GMAIL_PASSWORD
+from app.config.settings import (
+    EMAIL_FROM,
+    EMAIL_FROM_NAME,
+    SMTP_GMAIL_ADDRESS,
+    SMTP_GMAIL_PASSWORD,
+    SMTP_HOST,
+    SMTP_MODE,
+    SMTP_PORT,
+    SMTP_TIMEOUT,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -140,7 +150,7 @@ def send_email(
     issue_title: str | None = None,
 ) -> dict[str, Any]:
     """
-    Send HTML email (Gmail SMTP). If `issue_url` is set, builds the welcoming digest template;
+    Send HTML email via SMTP (e.g. Gmail + App Password). If `issue_url` is set, builds the welcoming digest template;
     optional `html_content` is appended inside the template. If `issue_url` is omitted, `html_content` is required.
     """
     cleaned = [r.strip() for r in recipients if r and r.strip()]
@@ -180,44 +190,108 @@ def send_email(
         }
 
     if SMTP_GMAIL_ADDRESS and SMTP_GMAIL_PASSWORD:
-        return _send_gmail_smtp(cleaned, subject, final_html, plain_text=plain)
+        return _send_smtp(cleaned, subject, final_html, plain_text=plain)
 
-    logger.error("send_email: no provider configured — set SMTP_GMAIL_ADDRESS and SMTP_GMAIL_PASSWORD")
-    return {"success": False, "error": "No email provider configured", "provider": "none"}
+    logger.error("send_email: set SMTP_GMAIL_ADDRESS and SMTP_GMAIL_PASSWORD")
+    return {"success": False, "error": "No SMTP credentials configured", "provider": "none"}
 
 
-def _send_gmail_smtp(
+def _smtp_attempt_starttls(host: str, port: int, msg: MIMEMultipart, user: str, password: str, timeout: int) -> None:
+    ctx = ssl.create_default_context()
+    with smtplib.SMTP(host, port, timeout=timeout) as server:
+        server.ehlo()
+        server.starttls(context=ctx)
+        server.ehlo()
+        server.login(user, password)
+        server.send_message(msg)
+
+
+def _smtp_attempt_ssl(host: str, port: int, msg: MIMEMultipart, user: str, password: str, timeout: int) -> None:
+    ctx = ssl.create_default_context()
+    with smtplib.SMTP_SSL(host, port, timeout=timeout, context=ctx) as server:
+        server.login(user, password)
+        server.send_message(msg)
+
+
+def _send_smtp(
     recipients: list[str],
     subject: str,
     html_content: str,
     *,
     plain_text: str | None = None,
 ) -> dict[str, Any]:
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"] = f"{EMAIL_FROM_NAME} <{SMTP_GMAIL_ADDRESS}>"
+    msg["To"] = ", ".join(recipients)
+
+    if plain_text:
+        msg.attach(MIMEText(plain_text, "plain", "utf-8"))
+    msg.attach(MIMEText(html_content, "html", "utf-8"))
+
+    host = SMTP_HOST
+    timeout = max(10, SMTP_TIMEOUT)
+    mode = SMTP_MODE if SMTP_MODE in ("auto", "starttls", "ssl") else "auto"
+    errors: list[str] = []
+
+    def run(kind: str, port: int) -> bool:
+        try:
+            if kind == "starttls":
+                _smtp_attempt_starttls(host, port, msg, SMTP_GMAIL_ADDRESS, SMTP_GMAIL_PASSWORD, timeout)
+            else:
+                _smtp_attempt_ssl(host, port, msg, SMTP_GMAIL_ADDRESS, SMTP_GMAIL_PASSWORD, timeout)
+            return True
+        except smtplib.SMTPAuthenticationError:
+            raise
+        except Exception as e:
+            errors.append(f"{kind} port {port}: {e}")
+            logger.warning("SMTP %s:%s failed: %s", host, port, e)
+            return False
+
     try:
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = subject
-        msg["From"] = f"{EMAIL_FROM_NAME} <{SMTP_GMAIL_ADDRESS}>"
-        msg["To"] = ", ".join(recipients)
+        if mode == "starttls":
+            port = SMTP_PORT or 587
+            if not run("starttls", port):
+                return _smtp_failure(errors)
+        elif mode == "ssl":
+            port = SMTP_PORT or 465
+            if not run("ssl", port):
+                return _smtp_failure(errors)
+        else:
+            if SMTP_PORT is not None:
+                if SMTP_PORT == 587:
+                    attempts = [("starttls", 587), ("ssl", 465)]
+                elif SMTP_PORT == 465:
+                    attempts = [("ssl", 465), ("starttls", 587)]
+                else:
+                    attempts = [("starttls", SMTP_PORT), ("ssl", SMTP_PORT)]
+            else:
+                attempts = [("starttls", 587), ("ssl", 465)]
+            for kind, port in attempts:
+                if run(kind, port):
+                    break
+            else:
+                return _smtp_failure(errors)
+    except smtplib.SMTPAuthenticationError as e:
+        logger.error("SMTP authentication failed: %s", e)
+        return {
+            "success": False,
+            "error": (
+                "SMTP authentication failed. For Gmail: enable 2FA and use a 16-character App Password, "
+                "not your normal password."
+            ),
+            "provider": "smtp",
+        }
 
-        if plain_text:
-            msg.attach(MIMEText(plain_text, "plain", "utf-8"))
-        msg.attach(MIMEText(html_content, "html", "utf-8"))
+    logger.info("send_email: SMTP ok (%s recipients, host=%s)", len(recipients), host)
+    return {"success": True, "error": None, "provider": "smtp"}
 
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-            server.login(SMTP_GMAIL_ADDRESS, SMTP_GMAIL_PASSWORD)
-            server.sendmail(SMTP_GMAIL_ADDRESS, recipients, msg.as_string())
 
-        logger.info("send_email: Gmail SMTP accepted (%s recipients)", len(recipients))
-        return {"success": True, "error": None, "provider": "gmail"}
-
-    except smtplib.SMTPAuthenticationError:
-        logger.error("send_email Gmail: Authentication failed - check credentials")
-        return {"success": False, "error": "Gmail authentication failed", "provider": "gmail"}
-
-    except smtplib.SMTPException as e:
-        logger.error("send_email Gmail SMTP error: %s", str(e))
-        return {"success": False, "error": f"Gmail SMTP error: {str(e)}", "provider": "gmail"}
-
-    except Exception as e:
-        logger.exception("send_email Gmail failed")
-        return {"success": False, "error": str(e), "provider": "gmail"}
+def _smtp_failure(errors: list[str]) -> dict[str, Any]:
+    detail = "; ".join(errors) if errors else "unknown"
+    logger.error("send_email: all SMTP attempts failed: %s", detail)
+    hint = (
+        " Use SMTP_MODE=starttls or SMTP_MODE=ssl and SMTP_PORT if needed. "
+        "Some hosts block outbound SMTP; check your platform’s docs (e.g. Render)."
+    )
+    return {"success": False, "error": f"SMTP failed ({detail}).{hint}", "provider": "smtp"}

@@ -1,6 +1,6 @@
 # AI Newsletter
 
-Python backend and **MCP (Model Context Protocol) server** that fetch AI-related news, optionally rank it with an LLM, render a **responsive HTML newsletter**, **deploy** it as static `index.html` on **Vercel**, and **send** it by email (SMTP or SendGrid).
+Python backend and **MCP (Model Context Protocol) server** that fetch AI-related news, optionally rank it with an LLM, render a **responsive HTML newsletter**, **deploy** it as static `index.html` on **Vercel**, and **send** it by email over **SMTP** (e.g. Gmail + App Password).
 
 ---
 
@@ -37,7 +37,7 @@ Each tool returns JSON text; failures include an `error` field where applicable.
 | `get_github_repos`       | `app/services/api_tools.py`                              | Unauthenticated GitHub API (rate limits apply)                                              |
 | `filter_ai_news`         | `app/services/api_tools.py`                              | OpenRouter; needs `OPENROUTER_API_KEY` (otherwise returns input unchanged)                  |
 | `deploy_newsletter_page` | `app/services/vercel_deploy.py` + `newsletter_render.py` | Needs `VERCEL_TOKEN`, `VERCEL_PROJECT_ID`; optional `VERCEL_PROJECT_NAME`, `VERCEL_TEAM_ID` |
-| `send_email`             | `app/services/email_sender.py`                           | SendGrid if `SENDGRID_API_KEY`, else SMTP (`EMAIL_USER`, `EMAIL_PASS`)                      |
+| `send_email`             | `app/services/email_sender.py`                           | SMTP: `SMTP_GMAIL_ADDRESS`, `SMTP_GMAIL_PASSWORD`, `EMAIL_FROM`, etc. (see below)          |
 
 MCP wiring lives in `app/mcp_server.py`; SSE routes in `app/routes/mcp.py`.
 
@@ -51,10 +51,18 @@ MCP wiring lives in `app/mcp_server.py`; SSE routes in `app/routes/mcp.py`.
 - `OPENROUTER_API_KEY` — Article ranking in `filter_ai_news`.
 - `NEWS_DATA_API_KEY` — NewsData.io; merged into `get_news` with GNews when set.
 
-**Email**
+**Email (SMTP only)**
 
-- `SENDGRID_API_KEY` — If set, mail is sent via SendGrid.
-- Otherwise **SMTP**: `EMAIL_USER`, `EMAIL_PASS`, optional `EMAIL_SMTP_HOST` (default `smtp.gmail.com`), `EMAIL_SMTP_PORT` (default `587`), `EMAIL_FROM`, `EMAIL_FROM_NAME`.
+- `SMTP_GMAIL_ADDRESS` — Gmail address used to sign in to SMTP.
+- `SMTP_GMAIL_PASSWORD` — [Gmail App Password](https://support.google.com/accounts/answer/185833) (not your normal password).
+- `EMAIL_FROM` — Required by the app; usually the same as `SMTP_GMAIL_ADDRESS`.
+- `EMAIL_FROM_NAME` — Display name (default `AI Weekly`).
+- `SMTP_HOST` — Default `smtp.gmail.com`.
+- `SMTP_MODE` — `auto` (default: try port **587 STARTTLS**, then **465 SSL**), `starttls`, or `ssl`.
+- `SMTP_PORT` — Optional override when using `starttls` or `ssl` mode.
+- `SMTP_TIMEOUT` — Seconds (default `30`).
+
+Some PaaS providers restrict outbound SMTP; if both ports fail on Render, check [Render’s networking docs](https://render.com/docs) or use a provider that allows SMTP.
 
 **Vercel**
 
@@ -138,7 +146,7 @@ This checks Jinja rendering, deploy input resolution, and that all five MCP tool
 
 ## Performance note
 
-The original design target was a very fast end-to-end run; in practice **OpenRouter**, **Vercel**, and **SMTP/SendGrid** latency often push total time above a few seconds. Tune timeouts in `api_tools.py` / `vercel_deploy.py` / `email_sender.py` if needed.
+The original design target was a very fast end-to-end run; in practice **OpenRouter**, **Vercel**, and **SMTP** latency often push total time above a few seconds. Tune timeouts in `api_tools.py` / `vercel_deploy.py` / `email_sender.py` if needed.
 
 ---
 
