@@ -1,7 +1,9 @@
 """
-Standalone MCP server (SSE) for Render or local dev.
+Entry point used by some deploys: `python mcp_app.py`.
 
-Serve with: python mcp_app.py  (uses PORT from env on Render, default 8001 locally)
+- **Local (no RENDER):** MCP-only ASGI on port 8001 (`/mcp/sse`, `/mcp/messages`).
+- **Render:** Runs the **combined** FastAPI app (`app.main:app`) so `/chat` and `/mcp` work on the same URL,
+  unless you set env `MCP_ONLY=1` for a dedicated MCP-only service.
 """
 import json
 import logging
@@ -79,4 +81,10 @@ async def mcp_asgi_app(scope, receive, send):
 if __name__ == "__main__":
     host = os.environ.get("HOST", "0.0.0.0")
     port = int(os.environ.get("PORT", "8001"))
-    uvicorn.run(mcp_asgi_app, host=host, port=port)
+    on_render = (os.getenv("RENDER") or "").lower() in ("true", "1", "yes")
+    mcp_only = (os.getenv("MCP_ONLY") or "").lower() in ("1", "true", "yes")
+
+    if on_render and not mcp_only:
+        uvicorn.run("app.main:app", host=host, port=port)
+    else:
+        uvicorn.run(mcp_asgi_app, host=host, port=port)
