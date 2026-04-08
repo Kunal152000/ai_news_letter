@@ -14,7 +14,7 @@ _IS_RENDER = (os.getenv("RENDER") or "").lower() in ("true", "1", "yes")
 # 1) MCP_SSE_URL if set
 # 2) On Render only: same-service URL from RENDER_EXTERNAL_URL (MCP mounted on app.main at /mcp/sse)
 # 3) Local dev: http://127.0.0.1:{PORT}/mcp/sse (same uvicorn as /chat)
-# For MCP-only process (mcp_app.py), set MCP_SSE_URL explicitly (e.g. http://127.0.0.1:8001/mcp/sse).
+# For a remote MCP service only, set MCP_SSE_URL to its public /mcp/sse URL.
 _explicit_mcp = (os.getenv("MCP_SSE_URL") or "").strip()
 _render_external = (os.getenv("RENDER_EXTERNAL_URL") or "").strip().rstrip("/")
 _local_port = (os.getenv("PORT") or "8000").strip()

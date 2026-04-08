@@ -1,17 +1,19 @@
 # AI Newsletter
 
-Python **MCP (Model Context Protocol) server** and a small **FastAPI** chat API that fetch AI-related news, optionally rank articles with OpenRouter, render a **responsive HTML newsletter**, **deploy** it as static `index.html` on **Vercel**, and **send** mail through the **Resend** HTTP API.
+Python **MCP (Model Context Protocol)** tools and a **FastAPI** app on one server: **`POST /chat`** (OpenRouter agent) and **`GET /mcp/sse`** + **`POST /mcp/messages`** (MCP over SSE). The stack fetches AI-related news, can rank articles with OpenRouter, renders a **responsive HTML newsletter**, **deploys** static `index.html` on **Vercel**, and **sends** mail via **Resend**.
 
 ---
 
 ## What runs where
 
-| Component | Entry | Role |
-| --------- | ----- | ---- |
-| **MCP server** | `mcp_app.py` | `GET /mcp/sse`, `POST /mcp/messages` — tools (news, deploy, email). Deploy this as its own Render Web Service. |
-| **Chat API** | `app.main:app` | `GET /`, `POST /chat` — agent talks to OpenRouter and calls MCP over SSE. Second Render Web Service. |
+One process: **`uvicorn app.main:app`**.
 
-`app/agent.py` uses **`MCP_SSE_URL`** (default `http://127.0.0.1:8001/mcp/sse` for local MCP). On Render, set it to your MCP service, e.g. `https://ai-newsletter-mcp.onrender.com/mcp/sse`.
+| Surface        | Paths                          | Role                                      |
+| -------------- | ------------------------------ | ----------------------------------------- |
+| Chat API       | `GET /`, `POST /chat`          | Agent → OpenRouter → MCP tools over SSE   |
+| MCP (SSE)      | `GET /mcp/sse`, `POST /mcp/messages` | External MCP clients (e.g. Cursor)   |
+
+`app/agent.py` uses **`MCP_SSE_URL`** when set; otherwise on Render it uses **`RENDER_EXTERNAL_URL/mcp/sse`** (same host). Locally it defaults to `http://127.0.0.1:{PORT}/mcp/sse`.
 
 ---
 
@@ -29,15 +31,15 @@ Each tool returns JSON text; failures include an `error` field where applicable.
 
 ## MCP tools
 
-| Tool                     | Module                                                   | Notes                                                                                       |
-| ------------------------ | -------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `get_news`               | `app/services/api_tools.py`                              | `GNEWS_API_KEY` and/or `NEWS_DATA_API_KEY`                                                  |
-| `get_github_repos`       | `app/services/api_tools.py`                              | Unauthenticated GitHub API (rate limits apply)                                              |
-| `filter_ai_news`         | `app/services/api_tools.py`                              | OpenRouter; optional `OPENROUTER_HTTP_REFERER` / `OPENROUTER_APP_TITLE` for the API         |
-| `deploy_newsletter_page` | `app/services/vercel_deploy.py` + `newsletter_render.py` | `VERCEL_TOKEN`, `VERCEL_PROJECT_ID`; optional `VERCEL_PROJECT_NAME`, `VERCEL_TEAM_ID`       |
-| `send_email`             | `app/services/email_sender.py`                           | Resend: `RESEND_API_KEY`, `EMAIL_FROM`, `EMAIL_FROM_NAME`                                   |
+| Tool                     | Module                                                   | Notes                                                                                 |
+| ------------------------ | -------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `get_news`               | `app/services/api_tools.py`                              | `GNEWS_API_KEY` and/or `NEWS_DATA_API_KEY`                                            |
+| `get_github_repos`       | `app/services/api_tools.py`                              | Unauthenticated GitHub API (rate limits apply)                                        |
+| `filter_ai_news`         | `app/services/api_tools.py`                              | OpenRouter; optional `OPENROUTER_HTTP_REFERER` / `OPENROUTER_APP_TITLE`              |
+| `deploy_newsletter_page` | `app/services/vercel_deploy.py` + `newsletter_render.py` | `VERCEL_TOKEN`, `VERCEL_PROJECT_ID`; optional `VERCEL_PROJECT_NAME`, `VERCEL_TEAM_ID` |
+| `send_email`             | `app/services/email_sender.py`                           | Resend: `RESEND_API_KEY`, `EMAIL_FROM`, `EMAIL_FROM_NAME`                           |
 
-MCP wiring: `app/mcp_server.py`. SSE handlers: `app/routes/mcp.py`.
+MCP wiring: `app/mcp_server.py`. SSE handlers: `app/routes/mcp.py` (mounted from `app/main.py`).
 
 ---
 
@@ -47,7 +49,7 @@ MCP wiring: `app/mcp_server.py`. SSE handlers: `app/routes/mcp.py`.
 
 - `GNEWS_API_KEY` — GNews search.
 - `NEWS_DATA_API_KEY` — NewsData.io; merged into `get_news` when set.
-- `OPENROUTER_API_KEY` — Article ranking in `filter_ai_news`.
+- `OPENROUTER_API_KEY` — Article ranking in `filter_ai_news` and the `/chat` agent.
 - `OPENROUTER_HTTP_REFERER` — Optional; some OpenRouter setups expect a referer URL.
 - `OPENROUTER_APP_TITLE` — Optional; sent as `X-Title` (default `AI Newsletter`).
 
@@ -64,8 +66,8 @@ MCP wiring: `app/mcp_server.py`. SSE handlers: `app/routes/mcp.py`.
 
 **Chat ↔ MCP**
 
-- `MCP_SSE_URL` — Full SSE URL for the MCP service (required in production when API and MCP are separate).
-- `PORT` — Set by Render on each service; `mcp_app.py` and `app.main` read it when present.
+- `MCP_SSE_URL` — Optional override for the SSE URL (e.g. remote MCP). If unset on Render, uses `RENDER_EXTERNAL_URL/mcp/sse`.
+- `PORT` — Set by Render; uvicorn and settings use it.
 
 ---
 
@@ -73,16 +75,15 @@ MCP wiring: `app/mcp_server.py`. SSE handlers: `app/routes/mcp.py`.
 
 ```
 ai_newsletter/
-├── render.yaml                # Blueprint: two Web Services (MCP + API)
+├── render.yaml
 ├── requirements.txt           # pip install for Render build
-├── mcp_app.py                 # MCP-only ASGI (Render or local :8001)
 ├── app/
-│   ├── main.py                # FastAPI chat API only
+│   ├── main.py                # FastAPI: /chat + MCP routes
 │   ├── agent.py               # OpenRouter + MCP client (SSE)
 │   ├── mcp_server.py          # MCP tool definitions & handlers
 │   ├── config/settings.py     # Env loading
 │   ├── routes/
-│   │   ├── mcp.py             # SSE + POST message handlers (used by mcp_app)
+│   │   ├── mcp.py             # SSE + POST message handlers
 │   │   └── chat.py            # POST /chat
 │   ├── services/
 │   │   ├── api_tools.py
@@ -113,34 +114,23 @@ Create a `.env` in the project root. Do not commit `.env`.
 
 ## Running (local)
 
-**Terminal 1 — MCP**
-
-```bash
-uv run python mcp_app.py
-```
-
-Defaults to `http://127.0.0.1:8001` (`GET /mcp/sse`).
-
-**Terminal 2 — API**
-
 ```bash
 uv run python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 - Chat: `POST http://127.0.0.1:8000/chat`
-- Optional: `MCP_SSE_URL=http://127.0.0.1:8001/mcp/sse` in `.env` (same as default).
+- MCP SSE: `http://127.0.0.1:8000/mcp/sse` (same origin as chat; no extra `MCP_SSE_URL` needed).
 
 ---
 
 ## Deploy on Render
 
-1. Push the repo and create a **Blueprint** from `render.yaml`, or create two **Web Services** manually from the same repo.
-2. **MCP service**: start command `python mcp_app.py`, root `mcp_app.py` / repo root.
-3. **API service**: start command `python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT`.
-4. On the **API** service, set **`MCP_SSE_URL`** to `https://<your-mcp-service>.onrender.com/mcp/sse`.
-5. Add the same API keys and tokens to **both** services (or use a Render **Environment Group**): `GNEWS_API_KEY`, `NEWS_DATA_API_KEY`, `OPENROUTER_API_KEY`, `RESEND_API_KEY`, `EMAIL_FROM`, `VERCEL_*`, etc.
+1. Create one **Web Service** from this repo.
+2. Start command: `python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+3. Do **not** set `MCP_SSE_URL` unless MCP must live on another host; Render provides `RENDER_EXTERNAL_URL`.
+4. Add API keys: `GNEWS_API_KEY`, `NEWS_DATA_API_KEY`, `OPENROUTER_API_KEY`, `RESEND_API_KEY`, `EMAIL_FROM`, `VERCEL_*`, etc.
 
-External MCP clients (e.g. Cursor) can use the public **`https://…/mcp/sse`** URL of the MCP service.
+External MCP clients can use **`https://<your-service>.onrender.com/mcp/sse`**.
 
 ---
 
@@ -150,7 +140,7 @@ External MCP clients (e.g. Cursor) can use the public **`https://…/mcp/sse`** 
 uv run python test_newsletter_flow.py
 ```
 
-This checks Jinja rendering, deploy input resolution, and MCP tool registration. It does not call Vercel or Resend unless you add integration tests with real credentials.
+Checks Jinja rendering, deploy input resolution, and MCP tool registration (no real Vercel/Resend unless credentials are set).
 
 ---
 

@@ -1,7 +1,8 @@
 import json
 import re
-import requests
-from typing import List, Dict
+from typing import Dict, List
+
+import httpx
 
 from app.config.settings import (
     GNEWS_API_KEY,
@@ -44,7 +45,7 @@ def _fetch_gnews(query: str, from_date: str, to_date: str) -> List[Dict]:
         "to": to_date,
     }
     try:
-        response = requests.get(url, params=params, headers={"Accept": "application/json"}, timeout=10)
+        response = httpx.get(url, params=params, headers={"Accept": "application/json"}, timeout=10.0)
         response.raise_for_status()
         data = response.json()
         articles = data.get("articles", [])
@@ -82,7 +83,9 @@ def get_github_repos(query: str) -> List[Dict]:
     }
     
     try:
-        response = requests.get(url, params=params, headers={"Accept": "application/vnd.github.v3+json"}, timeout=10)
+        response = httpx.get(
+            url, params=params, headers={"Accept": "application/vnd.github.v3+json"}, timeout=10.0
+        )
         response.raise_for_status()
         data = response.json()
         items = data.get("items", [])
@@ -135,7 +138,7 @@ Articles:
     data = {"model": "openrouter/free", "messages": [{"role": "user", "content": prompt}]}
     
     try:
-        response = requests.post(url, headers=headers, json=data, timeout=15)
+        response = httpx.post(url, headers=headers, json=data, timeout=15.0)
         response.raise_for_status()
         result = response.json()
         

@@ -1,5 +1,6 @@
-import requests
-from typing import List, Dict
+from typing import Dict, List
+
+import httpx
 
 from app.config.settings import NEWS_DATA_API_KEY
 
@@ -45,25 +46,25 @@ def fetch_newsdata_search(query: str, from_date: str, to_date: str) -> List[Dict
     }
 
     try:
-        r = requests.get(
+        r = httpx.get(
             f"{_NEWSDATA_BASE}/archive",
             params={**common, "from_date": from_date, "to_date": to_date},
             headers=headers,
-            timeout=10,
+            timeout=10.0,
         )
         if r.status_code == 200:
             data = r.json()
             if data.get("status") == "success":
                 return _normalize_newsdata_results(data.get("results", []))
-    except requests.exceptions.RequestException as e:
+    except httpx.HTTPError as e:
         print(f"NewsData archive request failed: {e}")
 
     try:
-        r = requests.get(
+        r = httpx.get(
             f"{_NEWSDATA_BASE}/latest",
             params={**common, "category": "technology"},
             headers=headers,
-            timeout=10,
+            timeout=10.0,
         )
         r.raise_for_status()
         data = r.json()
@@ -71,9 +72,9 @@ def fetch_newsdata_search(query: str, from_date: str, to_date: str) -> List[Dict
             print(f"NewsData latest API status: {data.get('status', data)}")
             return []
         return _normalize_newsdata_results(data.get("results", []))
-    except requests.exceptions.Timeout:
+    except httpx.TimeoutException:
         print("Error: The request to NEWS_DATA API timed out.")
         return []
-    except requests.exceptions.RequestException as e:
+    except httpx.HTTPError as e:
         print(f"Error fetching news from NEWS_DATA API: {e}")
         return []
