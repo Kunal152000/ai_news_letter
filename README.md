@@ -17,7 +17,7 @@ Python **MCP (Model Context Protocol) server** and a small **FastAPI** chat API 
 
 ## End-to-end newsletter flow (agent / MCP client)
 
-1. **`get_news`** — GNews + optional NewsData (`query`, `from_date`, `to_date`).
+1. **`get_news`** — GNews + NewsData (`query`, `from_date`, `to_date`).
 2. **`get_github_repos`** — GitHub search (`query`).
 3. Merge lists; run **`filter_ai_news`** on **news articles only** (JSON array of `{title, description, url}`).
 4. **`deploy_newsletter_page`** — Pass **`html_content`**, or **`news`** / **`github_repos`** arrays (or legacy `*_json` strings) for Jinja rendering (`app/templates/newsletter.html.j2`).

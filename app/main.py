@@ -5,7 +5,6 @@ import uvicorn
 from fastapi import FastAPI
 
 from app.routes.chat import router as chat_router
-from app.routes.mcp import mcp_subapp
 
 logging.basicConfig(
     level=logging.INFO,
@@ -19,8 +18,6 @@ app = FastAPI(
 )
 
 app.include_router(chat_router)
-app.mount("/mcp", mcp_subapp)
-
 
 @app.get("/")
 def read_root():

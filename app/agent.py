@@ -14,14 +14,6 @@ async def process_chat_query(query: str) -> str:
     """
     mcp_url = MCP_SSE_URL
 
-    on_render = (os.getenv("RENDER") or "").lower() in ("true", "1", "yes")
-    if on_render and ("127.0.0.1" in mcp_url or "localhost" in mcp_url.lower()):
-        return (
-            "Chat is misconfigured on Render: MCP_SSE_URL points to localhost. "
-            "Clear MCP_SSE_URL to use the same host as this API (RENDER_EXTERNAL_URL), "
-            "or set MCP_SSE_URL to your dedicated MCP service https://…/mcp/sse."
-        )
-
     if not OPENROUTER_API_KEY:
         return "Error: OPENROUTER_API_KEY is not set."
 
@@ -52,7 +44,7 @@ async def process_chat_query(query: str) -> str:
                 "Use tools instead of inventing facts or URLs. "
                 "When calling filter_ai_news, pass the `articles` parameter as a JSON array copied from "
                 "get_news output—never put that array inside a string (URLs break JSON escaping). "
-                "For deploy_newsletter_page, pass `news` and optional `github_repos` as JSON arrays the same way. "
+                "For deploy_newsletter_page, pass `news` and `github_repos` as JSON arrays the same way. "
                 "Newsletter flow: get_news → get_github_repos → filter_ai_news(articles=[...]) → "
                 "deploy_newsletter_page(news=[...], github_repos=[...]) → send_email with issue_url=public_url, "
                 "highlights=[short teaser lines from top stories], subject, recipients; optional html_content. "
